@@ -16,7 +16,7 @@ async def connection() -> Pool:
     return pool
 
 
-async def start_connection(app):
+async def start_connection(app) -> None:
     """
     Открытие соединения с базой данных
     :param app: web.Application - объект приложения
@@ -32,32 +32,87 @@ async def close_connection(app):
     await app['db'].close()
 
 
-async def create_tables(db):
+async def create_tables(db: Pool) -> None:
     """
     Создание таблиц
-    :param db: web.Application - объект приложения
+    :param db: Pool - соединение с базой данных
     """
     async with db.acquire() as conn:
         await conn.execute('''
-        CREATE TABLE IF NOT EXISTS links (
-        id SERIAL PRIMARY KEY,
-        long_url VARCHAR NOT NULL,
-        short_url VARCHAR NOT NULL)
-        ''')
-
+            CREATE TABLE IF NOT EXISTS links (
+            id SERIAL PRIMARY KEY,
+            long_url VARCHAR NOT NULL,
+            short_url VARCHAR NOT NULL,
+            transition_count INT NOT NULL DEFAULT 0)
+            ''')
         await conn.execute('''
-                CREATE TABLE IF NOT EXISTS transitions (
-                id SERIAL PRIMARY KEY,
-                transition_count int NOT NULL,
-                FOREIGN KEY (id) REFERENCES
-                links(id))
-                ''')
+            CREATE INDEX IF NOT EXISTS idx_short_url 
+            ON links(short_url)
+            ''')
 
-async def add_link_to_db(db, long_url: str, short_url: str):
+
+async def add_link_to_db(db: Pool, long_url: str, short_url: str) -> None:
     """
     Добавление ссылки в базу данных
-    :param db:
-    :param long_url:
-    :param short_url:
-    :return:
+    :param db: db: Pool - соединение с базой данных
+    :param long_url: str - ссылка на ресурс
+    :param short_url: str - короткая ссылка
     """
+    async with db.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO links(long_url, short_url) 
+            VALUES ($1, $2)''', long_url, short_url)
+
+
+async def get_long_url(db: Pool, short_url: str) -> str:
+    """
+    Получение полной ссылки
+    :param db: Pool - соединение с базой данных
+    :param short_url: str - короткая ссылка
+    :return: str - ссылка на ресурс
+    """
+    async with db.acquire() as conn:
+        result = await conn.fetchval('''
+            SELECT long_url FROM links
+            WHERE short_url=$1''', short_url)
+        return result if result else None
+
+
+async def add_transition(db: Pool, short_url: str) -> None:
+    """
+    Добавление перехода в счётчик переходов
+    :param db: Pool - соединение с базой данных
+    :param short_url: str - короткая ссылка
+    """
+    async with db.acquire() as conn:
+        await conn.execute('''
+            UPDATE links
+            SET transition_count = transition_count + 1
+            WHERE short_url=$1''', short_url)
+
+
+async def get_transition_count(db: Pool, short_url: str) -> int:
+    """
+    Получение полной ссылки
+    :param db: Pool - соединение с базой данных
+    :param short_url: str - короткая ссылка
+    :return: int - количество переходов по ссылке
+    """
+    async with db.acquire() as conn:
+        result = await conn.fetchval('''
+            SELECT transition_count FROM links
+            WHERE short_url=$1''', short_url)
+        return result
+
+
+async def check_short_url(db: Pool, short_url: str) -> bool:
+    """
+    Проверка, существует ли короткая ссылка в базе данных
+    :param db: Pool - соединение с базой данных
+    :param short_url: str - короткая ссылка
+    :return: bool - есть ли такая ссылка в базе данных
+    """
+    async with db.acquire() as conn:
+        result = await conn.fetchval('''
+            SELECT 1 FROM links WHERE short_url=$1''', short_url)
+        return result is not None
