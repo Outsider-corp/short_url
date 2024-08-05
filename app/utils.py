@@ -3,6 +3,7 @@ import random
 import re
 import string
 
+import aiohttp
 from asyncpg import Pool
 
 from db import check_short_url
@@ -48,3 +49,18 @@ def validate_short_url(short_url: str) -> bool:
     if len(short_url) == 5 and re.match(r'^[a-zA-Z0-9]+$', short_url):
         return True
     return False
+
+
+async def check_link(link: str, timeout: int = 5) -> bool:
+    """
+    Проверка доступности ресурса по ссылке link
+    :param link: str - url-адрес
+    :param timeout: int - время ожидания ответа от ресурса
+    :return: bool - доступен ли ресурс
+    """
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(link, timeout=timeout) as response:
+                return response.status == 200
+        except aiohttp.ClientError:
+            return False
