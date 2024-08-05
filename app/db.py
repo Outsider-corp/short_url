@@ -43,11 +43,15 @@ async def create_tables(db: Pool) -> None:
             id SERIAL PRIMARY KEY,
             long_url VARCHAR NOT NULL,
             short_url VARCHAR NOT NULL,
-            transition_count INT NOT NULL DEFAULT 0)
+            transition_count INT NOT NULL DEFAULT 0);
             ''')
         await conn.execute('''
             CREATE INDEX IF NOT EXISTS idx_short_url 
-            ON links(short_url)
+            ON links(short_url);
+            ''')
+        await conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_long_url 
+            ON links(long_url);
             ''')
 
 
@@ -75,6 +79,20 @@ async def get_long_url(db: Pool, short_url: str) -> str:
         result = await conn.fetchval('''
             SELECT long_url FROM links
             WHERE short_url=$1''', short_url)
+        return result if result else None
+
+
+async def get_short_url(db: Pool, long_url: str) -> str:
+    """
+    Получение короткой ссылки
+    :param db: Pool - соединение с базой данных
+    :param long_url: str - ссылка на ресурс
+    :return: str - короткая ссылка
+    """
+    async with db.acquire() as conn:
+        result = await conn.fetchval('''
+            SELECT short_url FROM links
+            WHERE long_url=$1''', long_url)
         return result if result else None
 
 

@@ -1,6 +1,6 @@
 from aiohttp import web
 from app.routers import get_routers
-from db import close_connection, start_connection, create_tables
+from app.db import close_connection, start_connection, create_tables
 
 
 async def main():

@@ -6,7 +6,7 @@ import string
 import aiohttp
 from asyncpg import Pool
 
-from db import check_short_url
+from app.db import check_short_url
 
 
 def hash_url(url: str, salt: str = '') -> str:
